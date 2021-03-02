@@ -1,0 +1,41 @@
+{
+  "name": "🤘 Vibert's First Extension",
+  "version": "0.1",
+  "description": "🔥 🥁 👽 🔥 🥁 👽 🔥 🥁 👽",
+  "manifest_version": 3,
+  "background": {
+    "service_worker": "background.js"
+  },
+  "permissions": ["storage", "activeTab", "scripting"],
+  "action": {
+    "default_popup": "popup.html",
+    "default_icon": {
+      "16": "/images/vibert16.png",
+      "32": "/images/vibert32.png",
+      "48": "/images/vibert48.png",
+      "128": "/images/vibert128.png"
+    }
+  },
+  "options_page": "options.html",
+  "icons": {
+    "16": "/images/vibert16.png",
+    "32": "/images/vibert32.png",
+    "48": "/images/vibert48.png",
+    "128": "/images/vibert128.png"
+  },
+  "commands": {
+    "_execute_action": {
+      "suggested_key": {
+        "default": "Ctrl+Shift+Y",
+        "mac": "MacCtrl+Shift+Y"
+      }
+    }
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://www.youtube.com/watch*"],
+      "css": ["styles.css"],
+      "js": ["Tone.js", "content_script.js"]
+    }
+  ]
+}
