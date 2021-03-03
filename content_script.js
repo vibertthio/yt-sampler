@@ -135,7 +135,7 @@ function bindDragEvents(el, parent, index) {
 function bindKeyEvents() {
   const pts = queuePoints.points
   window.addEventListener('keydown', e => {
-    if (e.code.substr(0, 5) === 'Digit' && !e.repeat) {
+    if (e.code.substr(0, 5) === 'Digit') {
       
       e.stopPropagation()
 
