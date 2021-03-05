@@ -2,6 +2,7 @@
   --container-height: 20px;
   --container-bottom-gap: 10px;
   --point-size-ratio: 0.4;
+  --youtube-red: #ff0102;
 }
 
 .yt-sampler-name-tag {
@@ -66,7 +67,7 @@
   width: calc(var(--container-height) * var(--point-size-ratio));
   height: calc(var(--container-height) * var(--point-size-ratio));
   border-radius: calc(var(--container-height) * var(--point-size-ratio) * 0.5);
-  background-color: #CC0202;
+  background-color: var(--youtube-red);
   opacity: 0.5;
 
   text-align: center;
