@@ -1,26 +1,31 @@
 console.log('content script.')
 
+const DEFAULT_QUEUE_POINTS_COUNT = 10
 const QUEUE_POINT_SIZE = 8
 const TAG_HREF = 'https://vibertthio.com'
 const TAG = '🔥'
 // const TAG = '🔥 Sampler v0.0.1 🔥'
 
-let initialized = false
-let video
-let duration
-let queuePoints = { id: "xxxxxxxxxxx", points: [] }
-let isDebug
-let tagEl
+const state = {
+  isDebug: true,
+  initialized: false,
+  youtubeId: "",
+  queuePoints: [],
+}
+const elements = {
+  video: {},
+  tagEl: {},
+}
 
 function updateTagTextContet() {
-  if (tagEl) {
-    tagEl.textContent = isDebug ? '🚧' : '🔥'
+  if (elements.tagEl) {
+    elements.tagEl.textContent = state.isDebug ? '🚧' : '🔥'
   }
 }
 
 function listenStorageChange () {
   chrome.storage.local.get('debug', ({ debug }) => { 
-    isDebug = debug
+    state.isDebug = debug
     log('debug: on')
     updateTagTextContet()
   })
@@ -29,7 +34,7 @@ function listenStorageChange () {
     for (let item of Object.keys(changes)) {
       log(`${item} has changed: [ ${changes[item].oldValue} ] -> [ ${changes[item].newValue} ]`)
       if (item === 'debug') {
-        isDebug = changes[item].newValue
+        state.isDebug = changes[item].newValue
         updateTagTextContet()
       }
     }
@@ -41,7 +46,7 @@ function log() {
   for (let i = 0; i < arguments.length; i++) {
     input += arguments[i] + " "
   }
-  if (isDebug) {
+  if (state.isDebug) {
     console.log("[yt-sampler]", input);
   }
 }
@@ -60,7 +65,7 @@ function parseYoutubeId(url) {
   return match && match[7].length === 11 ? match[7] : false
 }
 
-function appendQueuePoints() {
+function appendCustomElements() {
   // const ytChromeBuottom = document.querySelector('.ytp-chrome-bottom')
   const barContainer = document.querySelector('.ytp-progress-bar-container')
 
@@ -69,30 +74,38 @@ function appendQueuePoints() {
   }
 
   const containerEl = htmlToElement(`<div class="yt-sampler-container"></div>`)
-  const linkEl = htmlToElement(`<a class="yt-sampler-name-tag" id="" href="${TAG_HREF}" target="_blank">${TAG + (isDebug ? ' 🚧' : '')}</a>`)
+  const tagEl = htmlToElement(`
+    <button class="yt-sampler-name-tag" href="${TAG_HREF}" target="_blank">${TAG + (state.isDebug ? ' 🚧' : '')}</button>
+  `)
+
   const queuePointsEl = htmlToElement(`<div class="yt-sampler-qpts"></div>`)
 
-  for (let i = 0; i < queuePoints.points.length; i++) {
-    const pt = queuePoints.points[i]
+  tagEl.addEventListener('click', () => {
+    queuePointsEl.classList.toggle('hidden')
+  })
+
+  elements.tagEl = tagEl
+
+  for (let i = 0; i < state.queuePoints.length; i++) {
+    const pt = state.queuePoints[i]
     const ptEl = htmlToElement(`<div class="yt-sampler-qpt"><span>${pt.name}</span></div>`)
     const perfectLeft = pt.start * barContainer.clientWidth - QUEUE_POINT_SIZE * 0.5
+
     ptEl.style.left = `${100 * perfectLeft / barContainer.clientWidth}%`
     queuePointsEl.appendChild(ptEl)
     bindDragEvents(ptEl, queuePointsEl, i)
   }
   
-  containerEl.appendChild(linkEl)
+  containerEl.appendChild(tagEl)
   containerEl.appendChild(queuePointsEl)
   barContainer.appendChild(containerEl)
-
-  tagEl = linkEl
 }
 
 function bindDragEvents(el, parent, index) {
   let dragging = false
   let parentWidth
   let parentX
-  let start = queuePoints.points[index].start
+  let start = state.queuePoints[index].start
 
   function mouseDownCallback() {
     log('mouse down')
@@ -123,17 +136,17 @@ function bindDragEvents(el, parent, index) {
     document.onmouseup = null
 
     // update the queue points
-    queuePoints.points[index].start = start
+    state.queuePoints[index].start = start
     // chrome.storage.local.set('queue-point')
 
-    video.currentTime = start * duration
+    elements.video.currentTime = start * elements.video.duration
   }
 
   el.onmousedown = mouseDownCallback
 }
 
 function bindKeyEvents() {
-  const pts = queuePoints.points
+  const pts = state.queuePoints
   window.addEventListener('keydown', e => {
     if (e.code.substr(0, 5) === 'Digit') {
       
@@ -142,70 +155,74 @@ function bindKeyEvents() {
       const id = Math.round(Number(e.code[5]))
       if (id >= 0  && id <= 9) {
         if (id < pts.length) {
-          video.currentTime = pts[id].start * duration
+          elements.video.currentTime = pts[id].start * elements.video.duration
         }
       }
     }
   }, true)
 }
 
-function randomizePoints() {
-  const pts = queuePoints.points
-  for (let i = 1; i < 10; i++) {
+function initializeDefaultPoints() {
+
+  const pts = state.queuePoints
+  for (let i = 0; i < DEFAULT_QUEUE_POINTS_COUNT; i++) {
     const name = `${i}`
-    const start = Math.max(0.05, (i - 1) * 0.1)
-    const end = start + Math.random() * 0.2
+    const start = i / (DEFAULT_QUEUE_POINTS_COUNT + 1)
+    const end = null
     pts[i] = { name, start, end }
   }
 
-  pts[0] = {
-    name: '0',
-    start: 0.9,
-    end: 0.91,
-  }
+  pts[0].start = DEFAULT_QUEUE_POINTS_COUNT / (DEFAULT_QUEUE_POINTS_COUNT + 1)
+
+  log('randonmized points')
 }
 
+/**
+ * Executed when a new video is opened
+ */
 function init() {
-  video = document.querySelector('video')
-  duration = video.duration
-  queuePoints.id = parseYoutubeId(location.href)
-  log(`content script loaded on youtube, ID: ${queuePoints.id}.`)
+
+  elements.video = document.querySelector('video')
+  state.youtubeId = parseYoutubeId(location.href)
+  log(`content script loaded on youtube, ID: ${state.youtubeId}.`)
+
   listenStorageChange()
-  randomizePoints()
-  appendQueuePoints()
+  initializeDefaultPoints()
+  appendCustomElements()
   bindKeyEvents()
 
-  initialized = true
+  state.initialized = true
 }
 
+/**
+ * Executed window is loaded or URL is changed.
+ * Check if a video is presented, and call the "init" after all necessary elements are loaded.
+ */
 function onLoad(url) {
-  if (!url.includes('watch')) {
-    return
-  }
+  
+  // don't wait for the element when not in "watch" pages
+  if (!url.includes('watch')) return
+
+  // keep checking if the bar is loaded
   let checkVideoProgressBarExist = setInterval(() => {
-    let v = document.querySelector('video')
-    if (!v || !v.duration) {
-      return
-    }
-    if (!document.querySelector('.ytp-progress-bar-container')) {
-      return
-    }
+    if (!document.querySelector('video')) return
 
-    video = v
-    duration = v.duration
+    const barContainer = document.querySelector('.ytp-progress-bar-container')
+    if (!barContainer || barContainer.clientWidth === 0) return
 
-    if (!initialized) {
+    if (!state.initialized) {
       init()
     }
     clearInterval(checkVideoProgressBarExist)
   }, 100)
-  console.log('on load', initialized)
 }
 
 window.addEventListener('load', () => {
+  log('window loaded')
   onLoad(window.location.href)
 })
+
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-  const { tab } = message
-  onLoad(tab.url)
+  log('chrome.runtime onMessage', message)
+  onLoad(window.location.href)
 });
