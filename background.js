@@ -5,7 +5,7 @@ chrome.runtime.onInstalled.addListener(() => {
   console.log('Default background color set to %cgreen', `color: ${color}`);
 });
 
-chrome.tabs.onUpdated.addListener(function(tabId, changeInfo, tab){
+chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
   if(changeInfo && changeInfo.status == "complete"){
       console.log("Tab updated: " + tab.url);
       chrome.tabs.sendMessage(tabId, { tab });

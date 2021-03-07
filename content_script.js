@@ -1,11 +1,15 @@
 console.log('content script.')
 
 const DEFAULT_QUEUE_POINTS_COUNT = 10
+const DEFAULT_QUEUE_LENGTH = 0.01
 const QUEUE_POINT_SIZE = 8
 const TAG_HREF = 'https://vibertthio.com'
 const TAG = '🔥'
 // const TAG = '🔥 Sampler v0.0.1 🔥'
 
+/**
+ * States and global variables.
+ */
 const state = {
   isDebug: true,
   initialized: false,
@@ -15,6 +19,62 @@ const state = {
 const elements = {
   video: {},
   tagEl: {},
+}
+
+
+/**
+ * Internal log method. Activate it in the extension popup.
+ */
+function log() {
+  let input = ''
+  for (let i = 0; i < arguments.length; i++) {
+    input += arguments[i] + " "
+  }
+  if (state.isDebug) {
+    console.log("[yt-sampler]", input);
+  }
+}
+
+/**
+ * Create a new element from a string written in HTML
+ * @param {string} html 
+ * @returns {HTMLElement} the created element
+ */
+function htmlToElement(html) {
+  let template = document.createElement('template')
+  html = html.trim()
+  template.innerHTML = html
+  return template.content.firstChild
+}
+
+/**
+ * Parse a string of url from YouTube video to get the video ID
+ * @param {string} url 
+ * @returns YouTube video ID
+ */
+function parseYoutubeId(url) {
+  // https://stackoverflow.com/questions/3452546/how-do-i-get-the-youtube-video-id-from-a-url
+  var regExp = /^.*((youtu.be\/)|(v\/)|(\/u\/\w\/)|(embed\/)|(watch\?))\??v?=?([^#&?]*).*/
+  var match = url.match(regExp)
+  return match && match[7].length === 11 ? match[7] : false
+}
+
+
+/**
+ * Executed when a new video is opened.
+ */
+function init() {
+
+  elements.video = document.querySelector('video')
+  state.youtubeId = parseYoutubeId(location.href)
+  log(`content script loaded on youtube, ID: ${state.youtubeId}.`)
+
+  listenStorageChange()
+  initializeDefaultPoints()
+  appendCustomElements()
+  bindKeyEvents()
+
+  state.initialized = true
 }
 
 function updateTagTextContet() {
@@ -41,28 +101,20 @@ function listenStorageChange () {
   })
 }
 
-function log() {
-  let input = ''
-  for (let i = 0; i < arguments.length; i++) {
-    input += arguments[i] + " "
-  }
-  if (state.isDebug) {
-    console.log("[yt-sampler]", input);
-  }
-}
+function initializeDefaultPoints() {
 
-function htmlToElement(html) {
-  let template = document.createElement('template')
-  html = html.trim()
-  template.innerHTML = html
-  return template.content.firstChild
-}
+  const pts = state.queuePoints
+  for (let i = 0; i < DEFAULT_QUEUE_POINTS_COUNT; i++) {
+    const name = `${i}`
+    const start = i / (DEFAULT_QUEUE_POINTS_COUNT + 1)
+    const end = start + DEFAULT_QUEUE_LENGTH
+    pts[i] = { name, start, end }
+  }
 
-function parseYoutubeId(url) {
-  // https://stackoverflow.com/questions/3452546/how-do-i-get-the-youtube-video-id-from-a-url
-  var regExp = /^.*((youtu.be\/)|(v\/)|(\/u\/\w\/)|(embed\/)|(watch\?))\??v?=?([^#&?]*).*/
-  var match = url.match(regExp)
-  return match && match[7].length === 11 ? match[7] : false
+  pts[0].start = DEFAULT_QUEUE_POINTS_COUNT / (DEFAULT_QUEUE_POINTS_COUNT + 1)
+  pts[0].end = pts[0].start + DEFAULT_QUEUE_LENGTH 
+
+  log('randonmized points')
 }
 
 function appendCustomElements() {
@@ -89,11 +141,17 @@ function appendCustomElements() {
   for (let i = 0; i < state.queuePoints.length; i++) {
     const pt = state.queuePoints[i]
     const ptEl = htmlToElement(`<div class="yt-sampler-qpt"><span>${pt.name}</span></div>`)
+    const ptEndEl = htmlToElement(`<div class="yt-sampler-qpt yt-sampler-qpt-end"></div>`)
+
     const perfectLeft = pt.start * barContainer.clientWidth - QUEUE_POINT_SIZE * 0.5
+    const perfectEndLeft = pt.end * barContainer.clientWidth - QUEUE_POINT_SIZE * 0.5
 
     ptEl.style.left = `${100 * perfectLeft / barContainer.clientWidth}%`
+    ptEndEl.style.left = `${100 * perfectEndLeft / barContainer.clientWidth}%`
+
     queuePointsEl.appendChild(ptEl)
-    bindDragEvents(ptEl, queuePointsEl, i)
+    queuePointsEl.appendChild(ptEndEl)
+    bindDragEvents(ptEl, ptEndEl, queuePointsEl, i)
   }
   
   containerEl.appendChild(tagEl)
@@ -101,11 +159,12 @@ function appendCustomElements() {
   barContainer.appendChild(containerEl)
 }
 
-function bindDragEvents(el, parent, index) {
+function bindDragEvents(el, endEl, parent, index) {
   let dragging = false
   let parentWidth
   let parentX
   let start = state.queuePoints[index].start
+  let end = state.queuePoints[index].end
 
   function mouseDownCallback() {
     log('mouse down')
@@ -124,9 +183,14 @@ function bindDragEvents(el, parent, index) {
     }
     const dX = Math.max(Math.min(e.clientX - parentX, parentWidth), 0)
     const perfectLeft = dX - el.clientWidth * 0.5
-    start = dX / parentWidth
+    const perfectEndLeft = perfectLeft + (end - start) * parentWidth
+    const newStart = dX / parentWidth
+
+    end = end + (newStart - start)
+    start = newStart
     
     el.style.left = `${100 * perfectLeft / parentWidth}%`
+    endEl.style.left = `${100 * perfectEndLeft / parentWidth}%`
   }
 
   function mouseUpCallback() {
@@ -137,12 +201,32 @@ function bindDragEvents(el, parent, index) {
 
     // update the queue points
     state.queuePoints[index].start = start
+    state.queuePoints[index].end = end
     // chrome.storage.local.set('queue-point')
 
     elements.video.currentTime = start * elements.video.duration
   }
 
   el.onmousedown = mouseDownCallback
+  
+  endEl.onmousedown = () => {
+    dragging = true
+    parentWidth = parent.clientWidth
+    parentX = parent.getBoundingClientRect().x
+
+    document.onmousemove = (e) => {
+      const dX = Math.max(Math.min(e.clientX - parentX, parentWidth), 0)
+      const perfectLeft = dX - el.clientWidth * 0.5
+      end = dX / parentWidth
+      endEl.style.left = `${100 * perfectLeft / parentWidth}%`
+    }
+    document.onmouseup = () => {
+      dragging = false
+      state.queuePoints[index].end = end
+      document.onmousemove = null
+      document.onmouseup = null
+    }
+  }
 }
 
 function bindKeyEvents() {
@@ -160,38 +244,6 @@ function bindKeyEvents() {
       }
     }
   }, true)
-}
-
-function initializeDefaultPoints() {
-
-  const pts = state.queuePoints
-  for (let i = 0; i < DEFAULT_QUEUE_POINTS_COUNT; i++) {
-    const name = `${i}`
-    const start = i / (DEFAULT_QUEUE_POINTS_COUNT + 1)
-    const end = null
-    pts[i] = { name, start, end }
-  }
-
-  pts[0].start = DEFAULT_QUEUE_POINTS_COUNT / (DEFAULT_QUEUE_POINTS_COUNT + 1)
-
-  log('randonmized points')
-}
-
-/**
- * Executed when a new video is opened
- */
-function init() {
-
-  elements.video = document.querySelector('video')
-  state.youtubeId = parseYoutubeId(location.href)
-  log(`content script loaded on youtube, ID: ${state.youtubeId}.`)
-
-  listenStorageChange()
-  initializeDefaultPoints()
-  appendCustomElements()
-  bindKeyEvents()
-
-  state.initialized = true
 }
 
 /**
