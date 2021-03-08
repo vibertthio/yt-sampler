@@ -17,7 +17,7 @@ const state = {
   oneShot: false,
   initialized: false,
   youtubeId: "",
-  queuePoints: [],
+  queuePoints: null,
 }
 const elements = {
   video: null,
@@ -76,30 +76,42 @@ function getVideoDuration() {
  */
 function init() {
 
+  if (elements.containerEl) elements.containerEl.remove()
+
   elements.video = document.querySelector('video')
   state.youtubeId = parseYoutubeId(location.href)
   log(`content script loaded on youtube, ID: ${state.youtubeId}.`)
 
-  listenStorageChange()
-  initializeDefaultPoints()
-  appendCustomElements()
-  bindKeyEvents()
+  getAndListenStorageChange()
+  // initializeDefaultPoints()
+  // appendCustomElements()
+  // updateQueuePointsStorage()
+  // bindKeyEvents()
 
   state.initialized = true
 }
 
-function updateTagTextContet() {
-  if (elements.tagEl) {
-    elements.tagEl.textContent = state.isDebug ? '🚧' : '🔥'
-  }
-}
-
-function listenStorageChange () {
+function getAndListenStorageChange() {
   chrome.storage.local.get('debug', ({ debug }) => { 
     state.isDebug = debug
     log('debug: on')
     updateTagTextContet()
   })
+  
+  chrome.storage.local.get('allQueuePoints', ({ allQueuePoints }) => {
+    if (allQueuePoints && allQueuePoints[state.youtubeId]) {
+      log('Get queue points from local storage.')
+      state.queuePoints = allQueuePoints[state.youtubeId]
+    } else {
+      log('Initialize default queue points.')
+      initializeDefaultPoints()
+    }
+
+    appendCustomElements()
+    updateQueuePointsStorage()
+    bindKeyEvents()
+  })
+
   chrome.storage.onChanged.addListener((changes, area) => {
     log("Change in storage area: " + area)
     for (let item of Object.keys(changes)) {
@@ -112,9 +124,28 @@ function listenStorageChange () {
   })
 }
 
+function updateTagTextContet() {
+  if (elements.tagEl) {
+    elements.tagEl.textContent = state.isDebug ? '🚧' : '🔥'
+  }
+}
+
+function updateQueuePointsStorage() {
+  chrome.storage.local.get('allQueuePoints', ({ allQueuePoints }) => {
+    const q = allQueuePoints || {}
+    q[state.youtubeId] = state.queuePoints
+    chrome.storage.local.set({ 
+      allQueuePoints: q
+    })
+  })
+  
+}
+
 function initializeDefaultPoints() {
 
+  state.queuePoints = []
   const pts = state.queuePoints
+
   for (let i = 0; i < DEFAULT_QUEUE_POINTS_COUNT; i++) {
     const name = `${i}`
     const start = i / (DEFAULT_QUEUE_POINTS_COUNT + 1)
@@ -175,7 +206,9 @@ function appendCustomElements() {
     queuePointsEl.appendChild(ptEndEl)
     bindDragEvents(ptEl, ptEndEl, queuePointsEl, i)
   }
-  
+
+  elements.containerEl = containerEl
+
   containerEl.appendChild(tagEl)
   containerEl.appendChild(queuePointsEl)
   barContainer.appendChild(containerEl)
@@ -231,6 +264,7 @@ function bindDragEvents(el, endEl, parent, index) {
       log('mouse up')
 
       positionSpan.classList.add('hidden')
+      updateQueuePointsStorage()
 
       dragging = false
       document.onmousemove = null
@@ -257,6 +291,9 @@ function bindDragEvents(el, endEl, parent, index) {
       endEl.style.left = `${100 * perfectLeft / parentWidth}%`
     }
     document.onmouseup = () => {
+
+      updateQueuePointsStorage()
+
       dragging = false
       state.queuePoints[index].end = end
       document.onmousemove = null
@@ -301,7 +338,7 @@ function onLoad(url) {
     const barContainer = document.querySelector('.ytp-progress-bar-container')
     if (!barContainer || barContainer.clientWidth === 0) return
 
-    if (!state.initialized) {
+    if (!state.initialized || parseYoutubeId(location.href) !== state.youtubeId) {
       init()
     }
     clearInterval(checkVideoProgressBarExist)

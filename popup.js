@@ -1,6 +1,7 @@
 const changeLogo = document.getElementById('change-logo')
 const debugCheckbox = document.getElementById('debug-checkbox')
 const clearStorageButton = document.getElementById('clear-sync')
+const logQueuePointsButton = document.getElementById('log-queue-points-button')
 
 chrome.storage.local.get('debug', ({ debug }) => {
   debugCheckbox.checked = debug
@@ -9,6 +10,12 @@ chrome.storage.local.get('debug', ({ debug }) => {
 debugCheckbox.addEventListener('click', () => {
   chrome.storage.local.set({ debug: debugCheckbox.checked })
 });
+
+logQueuePointsButton.addEventListener('click', () => {
+  chrome.storage.local.get('allQueuePoints', ({ allQueuePoints }) => {
+    console.log('allQueuePoints', allQueuePoints)
+  }) 
+})
 
 // When the button is clicked, inject setPageBackgroundColor into current page
 changeLogo.addEventListener('click', async () => {
