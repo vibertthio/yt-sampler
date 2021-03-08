@@ -5,6 +5,7 @@ const DEFAULT_QUEUE_LENGTH = 0.01
 const QUEUE_POINT_SIZE = 8
 const TAG_HREF = 'https://vibertthio.com'
 const TAG = '🔥'
+const SHIFT_ADJUST_SCALE = 0.01
 // const TAG = '🔥 Sampler v0.0.1 🔥'
 
 /**
@@ -166,48 +167,55 @@ function bindDragEvents(el, endEl, parent, index) {
   let start = state.queuePoints[index].start
   let end = state.queuePoints[index].end
 
-  function mouseDownCallback() {
+  el.onmousedown = (e) => {
     log('mouse down')
     dragging = true
     parentWidth = parent.clientWidth
     parentX = parent.getBoundingClientRect().x
 
-    document.onmousemove = mouseMoveCallback
-    document.onmouseup = mouseUpCallback
-  }
+    const shift = e.shiftKey
+    const initialStart = start
 
-  function mouseMoveCallback(e) {
-    log('mouse move')
-    if (!dragging) {
-      return
+    document.onmousemove = (e) => {
+      log('mouse move')
+      if (!dragging) {
+        return
+      }
+
+      const mX = e.clientX
+      
+      let dX = Math.max(Math.min(mX - parentX, parentWidth), 0)
+      
+      if (shift) {
+        dX = initialStart * parentWidth + (dX - initialStart * parentWidth) * SHIFT_ADJUST_SCALE
+      }
+
+
+      const perfectLeft = dX - el.clientWidth * 0.5
+      const perfectEndLeft = perfectLeft + (end - start) * parentWidth
+
+      const newStart = dX / parentWidth
+      end = end + (newStart - start)
+      start = newStart
+      
+      el.style.left = `${100 * perfectLeft / parentWidth}%`
+      endEl.style.left = `${100 * perfectEndLeft / parentWidth}%`
     }
-    const dX = Math.max(Math.min(e.clientX - parentX, parentWidth), 0)
-    const perfectLeft = dX - el.clientWidth * 0.5
-    const perfectEndLeft = perfectLeft + (end - start) * parentWidth
-    const newStart = dX / parentWidth
 
-    end = end + (newStart - start)
-    start = newStart
-    
-    el.style.left = `${100 * perfectLeft / parentWidth}%`
-    endEl.style.left = `${100 * perfectEndLeft / parentWidth}%`
+    document.onmouseup = () => {
+      log('mouse up')
+      dragging = false
+      document.onmousemove = null
+      document.onmouseup = null
+  
+      // update the queue points
+      state.queuePoints[index].start = start
+      state.queuePoints[index].end = end
+      // chrome.storage.local.set('queue-point')
+  
+      elements.video.currentTime = start * elements.video.duration
+    }
   }
-
-  function mouseUpCallback() {
-    log('mouse up')
-    dragging = false
-    document.onmousemove = null
-    document.onmouseup = null
-
-    // update the queue points
-    state.queuePoints[index].start = start
-    state.queuePoints[index].end = end
-    // chrome.storage.local.set('queue-point')
-
-    elements.video.currentTime = start * elements.video.duration
-  }
-
-  el.onmousedown = mouseDownCallback
   
   endEl.onmousedown = () => {
     dragging = true
@@ -229,6 +237,9 @@ function bindDragEvents(el, endEl, parent, index) {
   }
 }
 
+/**
+ * Bind all the keyboard events on the web page.
+ */
 function bindKeyEvents() {
   const pts = state.queuePoints
   window.addEventListener('keydown', e => {
