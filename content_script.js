@@ -6,6 +6,7 @@ const QUEUE_POINT_SIZE = 8
 const TAG_HREF = 'https://vibertthio.com'
 const TAG = '🔥'
 const SHIFT_ADJUST_SCALE = 0.01
+const QUEUE_POSITION_TEXT_PRECISION = 3
 // const TAG = '🔥 Sampler v0.0.1 🔥'
 
 /**
@@ -18,8 +19,8 @@ const state = {
   queuePoints: [],
 }
 const elements = {
-  video: {},
-  tagEl: {},
+  video: null,
+  tagEl: null,
 }
 
 
@@ -58,6 +59,14 @@ function parseYoutubeId(url) {
   var regExp = /^.*((youtu.be\/)|(v\/)|(\/u\/\w\/)|(embed\/)|(watch\?))\??v?=?([^#&?]*).*/
   var match = url.match(regExp)
   return match && match[7].length === 11 ? match[7] : false
+}
+
+/**
+ * Get the duration of the current video element.
+ */
+function getVideoDuration() {
+  if (!elements.video || !elements.video.duration) return 0
+  return elements.video.duration
 }
 
 
@@ -141,7 +150,14 @@ function appendCustomElements() {
 
   for (let i = 0; i < state.queuePoints.length; i++) {
     const pt = state.queuePoints[i]
-    const ptEl = htmlToElement(`<div class="yt-sampler-qpt"><span>${pt.name}</span></div>`)
+    const ptEl = htmlToElement(`
+      <div class="yt-sampler-qpt">
+        <span class="qpt-name">${pt.name}</span>
+        <span class="qpt-position hidden">${
+          (pt.start * getVideoDuration()).toFixed(QUEUE_POSITION_TEXT_PRECISION)
+        }</span>
+      </div>
+    `)
     const ptEndEl = htmlToElement(`<div class="yt-sampler-qpt yt-sampler-qpt-end"></div>`)
 
     const perfectLeft = pt.start * barContainer.clientWidth - QUEUE_POINT_SIZE * 0.5
@@ -175,6 +191,9 @@ function bindDragEvents(el, endEl, parent, index) {
 
     const shift = e.shiftKey
     const initialStart = start
+    const positionSpan = e.target.children[1]
+
+    positionSpan.classList.remove('hidden')
 
     document.onmousemove = (e) => {
       log('mouse move')
@@ -198,12 +217,16 @@ function bindDragEvents(el, endEl, parent, index) {
       end = end + (newStart - start)
       start = newStart
       
+      positionSpan.textContent = (start * getVideoDuration()).toFixed(QUEUE_POSITION_TEXT_PRECISION)
       el.style.left = `${100 * perfectLeft / parentWidth}%`
       endEl.style.left = `${100 * perfectEndLeft / parentWidth}%`
     }
 
     document.onmouseup = () => {
       log('mouse up')
+
+      positionSpan.classList.add('hidden')
+
       dragging = false
       document.onmousemove = null
       document.onmouseup = null

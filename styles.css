@@ -84,11 +84,19 @@
   z-index: 1;
 }
 
-.yt-sampler-qpt span {
+.yt-sampler-qpt .qpt-name {
   position: absolute;
   bottom: calc(var(--container-height));
   text-align: center;
   transform: translate(-50%);
+}
+
+.yt-sampler-qpt .qpt-position {
+  visibility: visible;
+  position: absolute;
+  bottom: calc(var(--container-height) * var(--point-size-ratio) * -0.5);
+  text-align: center;
+  transform: translate(-130%);
 }
 
 .transparent {
