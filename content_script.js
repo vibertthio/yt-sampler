@@ -14,6 +14,7 @@ const QUEUE_POSITION_TEXT_PRECISION = 3
  */
 const state = {
   isDebug: true,
+  oneShot: false,
   initialized: false,
   youtubeId: "",
   queuePoints: [],
@@ -165,6 +166,10 @@ function appendCustomElements() {
 
     ptEl.style.left = `${100 * perfectLeft / barContainer.clientWidth}%`
     ptEndEl.style.left = `${100 * perfectEndLeft / barContainer.clientWidth}%`
+
+    if (!state.oneShot) {
+      ptEndEl.classList.add('hidden')
+    }
 
     queuePointsEl.appendChild(ptEl)
     queuePointsEl.appendChild(ptEndEl)
