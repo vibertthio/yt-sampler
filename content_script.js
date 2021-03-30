@@ -76,18 +76,16 @@ function getVideoDuration() {
  */
 function init() {
 
-  if (elements.containerEl) elements.containerEl.remove()
-
   elements.video = document.querySelector('video')
   state.youtubeId = parseYoutubeId(location.href)
   log(`content script loaded on youtube, ID: ${state.youtubeId}.`)
 
-  getAndListenStorageChange()
-  // initializeDefaultPoints()
-  // appendCustomElements()
-  // updateQueuePointsStorage()
-  // bindKeyEvents()
+  appendCustomElements()
+  bindKeyEvents()
+  initializeQueuePoints()
 
+  getAndListenStorageChange()
+  
   state.initialized = true
 }
 
@@ -96,20 +94,6 @@ function getAndListenStorageChange() {
     state.isDebug = debug
     log('debug: on')
     updateTagTextContet()
-  })
-  
-  chrome.storage.local.get('allQueuePoints', ({ allQueuePoints }) => {
-    if (allQueuePoints && allQueuePoints[state.youtubeId]) {
-      log('Get queue points from local storage.')
-      state.queuePoints = allQueuePoints[state.youtubeId]
-    } else {
-      log('Initialize default queue points.')
-      initializeDefaultPoints()
-    }
-
-    appendCustomElements()
-    updateQueuePointsStorage()
-    bindKeyEvents()
   })
 
   chrome.storage.onChanged.addListener((changes, area) => {
@@ -131,6 +115,9 @@ function updateTagTextContet() {
 }
 
 function updateQueuePointsStorage() {
+  
+  if (chrome.storage === undefined) return
+
   chrome.storage.local.get('allQueuePoints', ({ allQueuePoints }) => {
     const q = allQueuePoints || {}
     q[state.youtubeId] = state.queuePoints
@@ -138,10 +125,27 @@ function updateQueuePointsStorage() {
       allQueuePoints: q
     })
   })
-  
 }
 
-function initializeDefaultPoints() {
+function initializeQueuePoints() {
+  chrome.storage.local.get('allQueuePoints', ({ allQueuePoints }) => {
+    if (allQueuePoints && allQueuePoints[state.youtubeId]) {
+      log('Get queue points from local storage.')
+      state.queuePoints = allQueuePoints[state.youtubeId]
+    } else {
+      log('Initialize default queue points.')
+      initializeDefaultQueuePoints()
+    }
+
+    // check data from URL
+    getDataFromUrl()
+
+    appendQueuePointsElements()
+  })
+}
+
+function initializeDefaultQueuePoints() {
+  log('Initialized default points.')
 
   state.queuePoints = []
   const pts = state.queuePoints
@@ -155,31 +159,39 @@ function initializeDefaultPoints() {
 
   pts[0].start = DEFAULT_QUEUE_POINTS_COUNT / (DEFAULT_QUEUE_POINTS_COUNT + 1)
   pts[0].end = pts[0].start + DEFAULT_QUEUE_LENGTH 
-
-  log('randonmized points')
 }
 
 function appendCustomElements() {
-  // const ytChromeBuottom = document.querySelector('.ytp-chrome-bottom')
+
   const barContainer = document.querySelector('.ytp-progress-bar-container')
 
   if (!barContainer) {
     return
   }
 
+  if (elements.containerEl) elements.containerEl.remove()
+
   const containerEl = htmlToElement(`<div class="yt-sampler-container"></div>`)
   const tagEl = htmlToElement(`
     <button class="yt-sampler-name-tag" href="${TAG_HREF}" target="_blank">${TAG + (state.isDebug ? ' 🚧' : '')}</button>
   `)
-
-  const queuePointsEl = htmlToElement(`<div class="yt-sampler-qpts"></div>`)
-
   tagEl.addEventListener('click', () => {
-    queuePointsEl.classList.toggle('hidden')
+    elements.queuePointsEl.classList.toggle('hidden')
   })
 
   elements.tagEl = tagEl
+  elements.containerEl = containerEl
+  elements.barContainer = barContainer
 
+  containerEl.appendChild(tagEl)
+  barContainer.appendChild(containerEl)
+}
+
+function appendQueuePointsElements() {
+
+  const { barContainer } = elements
+
+  const queuePointsEl = htmlToElement(`<div class="yt-sampler-qpts"></div>`)
   for (let i = 0; i < state.queuePoints.length; i++) {
     const pt = state.queuePoints[i]
     const ptEl = htmlToElement(`
@@ -207,11 +219,10 @@ function appendCustomElements() {
     bindDragEvents(ptEl, ptEndEl, queuePointsEl, i)
   }
 
-  elements.containerEl = containerEl
+  if (elements.queuePointsEl) elements.queuePointsEl.remove()
 
-  containerEl.appendChild(tagEl)
-  containerEl.appendChild(queuePointsEl)
-  barContainer.appendChild(containerEl)
+  elements.queuePointsEl = queuePointsEl
+  elements.containerEl.appendChild(queuePointsEl)
 }
 
 function bindDragEvents(el, endEl, parent, index) {
@@ -264,7 +275,7 @@ function bindDragEvents(el, endEl, parent, index) {
       log('mouse up')
 
       positionSpan.classList.add('hidden')
-      updateQueuePointsStorage()
+      
 
       dragging = false
       document.onmousemove = null
@@ -276,6 +287,9 @@ function bindDragEvents(el, endEl, parent, index) {
       // chrome.storage.local.set('queue-point')
   
       elements.video.currentTime = start * elements.video.duration
+
+      updateQueuePointsStorage()
+      addDataToUrl()
     }
   }
   
@@ -292,13 +306,60 @@ function bindDragEvents(el, endEl, parent, index) {
     }
     document.onmouseup = () => {
 
-      updateQueuePointsStorage()
+      
 
       dragging = false
       state.queuePoints[index].end = end
       document.onmousemove = null
       document.onmouseup = null
+
+      updateQueuePointsStorage()
     }
+  }
+}
+
+function addDataToUrl() {
+  let str = '#'
+  for (let i = 0; i < state.queuePoints.length; i++) {
+    const pt = state.queuePoints[i]
+    const perct = pt.start.toFixed(QUEUE_POSITION_TEXT_PRECISION)
+    str += `q${i}=${perct}`
+    if (i !== state.queuePoints.length - 1) str += ','
+  }
+  window.history.replaceState(undefined, undefined, str)
+}
+
+function getDataFromUrl() {
+  if (!window.location.hash) return
+  const hash = window.location.hash.substr(1)
+  const hashes = {}
+  hash.split(',').forEach(str => {
+    const [id, start] = str.split('=')
+    hashes[id] = start
+  })
+  for (let i = 0; i < state.queuePoints.length; i++) {
+    const pt = state.queuePoints[i]
+    if (hashes[`q${i}`]) {
+      pt.start = Number(hashes[`q${i}`])
+    } 
+  }
+}
+
+function getUrlVariables (name) {
+  const vars = []
+  let hash
+  let hashes = window.location.href.slice(window.location.href.indexOf('?') + 1).split('&')
+  
+  for(let i = 0; i < hashes.length; i++) {
+    hash = hashes[i].split('=')
+    hash[1] = unescape(hash[1])
+    vars.push(hash[0])
+    vars[hash[0]] = decodeURIComponent(hash[1])
+  }
+  if (vars.indexOf(name) >= 0) {
+    return vars[name];
+  } else {
+    return null;
   }
 }
 
@@ -306,7 +367,6 @@ function bindDragEvents(el, endEl, parent, index) {
  * Bind all the keyboard events on the web page.
  */
 function bindKeyEvents() {
-  const pts = state.queuePoints
   window.addEventListener('keydown', e => {
     if (e.code.substr(0, 5) === 'Digit') {
       
@@ -314,8 +374,8 @@ function bindKeyEvents() {
 
       const id = Math.round(Number(e.code[5]))
       if (id >= 0  && id <= 9) {
-        if (id < pts.length) {
-          elements.video.currentTime = pts[id].start * elements.video.duration
+        if (id < state.queuePoints.length) {
+          elements.video.currentTime = state.queuePoints[id].start * elements.video.duration
         }
       }
     }
@@ -350,7 +410,17 @@ window.addEventListener('load', () => {
   onLoad(window.location.href)
 })
 
-chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+  const { message } = request
   log('chrome.runtime onMessage', message)
-  onLoad(window.location.href)
+
+  if (message === 'URL updated') {
+    onLoad(window.location.href)
+  } else if (message === 'Reset queues') {
+    initializeDefaultQueuePoints()
+    appendQueuePointsElements()
+    updateQueuePointsStorage()
+  } else if (message === 'Share queues') {
+    addDataToUrl()
+  }
 });

@@ -1,11 +1,83 @@
-body {
-  width: 100px;
+:root {
+  --youtube-red: #ff0102;
+  --youtube-white: #fff;
+  --background-color: rgba(25, 25, 25, 1);
+  --global-padding: 0.5rem;
+}
+
+* {
+  box-sizing: border-box;
 }
 
 html {
+  margin: 0;
   padding: 0;
+  width: 160px;
+  
+}
+
+body {
+  position: relative;
+  margin: 0;
+  padding: var(--global-padding);
+  background-color: var(--background-color);
+  border: 3px solid var(--youtube-white);
+  color: var(--youtube-white)
 }
 
 p {
-  margin: 0;
+  margin: 0 0;
 }
+
+.button-div {
+  margin: 0.5rem 0;
+}
+
+button {
+  font-size: 0.8rem;
+  border: 0;
+  color: var(--youtube-white);
+  margin: 0;
+  padding: 0;
+  text-decoration: underline;
+  background-color: transparent;
+  opacity: 0.5;
+}
+
+button:hover {
+  opacity: 1.0;
+}
+
+a {
+  font-size: 0.8rem;
+  border: 0;
+  color: var(--youtube-white);
+  margin: 0;
+  padding: 0 0.2rem;
+  text-decoration: underline;
+  background-color: transparent;
+  /* opacity: 0.5; */
+}
+
+a:hover {
+  background-color: var(--youtube-white);
+  color: var(--background-color);
+  /* opacity: 1.0; */
+}
+
+.hidden {
+  display: none;
+}
+
+.title {
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+.author-div {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  padding: var(--global-padding);
+}
+

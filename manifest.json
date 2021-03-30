@@ -1,7 +1,7 @@
 {
-  "name": "🤘 Vibert's First Extension",
+  "name": "YouTube Sampler",
   "version": "0.1",
-  "description": "🔥 🥁 👽 🔥 🥁 👽 🔥 🥁 👽",
+  "description": "Create customized queue points of numeric keys (0~9) for YouTube video.",
   "manifest_version": 3,
   "background": {
     "service_worker": "background.js"
@@ -16,7 +16,6 @@
       "128": "/images/vibert128.png"
     }
   },
-  "options_page": "options.html",
   "icons": {
     "16": "/images/vibert16.png",
     "32": "/images/vibert32.png",

@@ -1,14 +1,42 @@
 <!DOCTYPE html>
 <html>
   <head>
+    <link rel="preconnect" href="https://fonts.gstatic.com">
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:ital,wght@0,400;0,500;0,700;1,400&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="popup.css">
   </head>
   <body>
-    <p>YouTube Sampler</p>
-    <div>Debug: <input id="debug-checkbox" type="checkbox"></input></div>
-    <button id="change-logo">change logo</button>
-    <button id="log-queue-points-button">log queue points</button>
-    <button id="clear-sync">reset</button>
+    <p class="title">YouTube Sampler</p>
+
+    <div class="button-div">
+      <button id="reset-queues-button">reset queues</button>
+    </div>
+
+    <div class="button-div">
+      <button id="share-queues-button">share queues</button>
+    </div>
+
+    <div class="button-div">
+      <div>Debug: <input id="debug-checkbox" type="checkbox"></input></div>
+    </div>
+    
+    <p>v.0.1</p>
+
+    <div class="author-div">
+      <p>
+        by
+        <a href="https://vibertthio.com" target="_blank">Vibert</a>
+      </p>
+    </div>
+    
+
+    <div class="hidden">
+      
+      <button id="change-logo">change logo</button>
+      <button id="log-queue-points-button">log queue points</button>
+      <button id="clear-sync">reset</button>
+    </div>
+
     <script src="popup.js"></script>
   </body>
 </html>
