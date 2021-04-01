@@ -4,6 +4,8 @@
   --point-size-ratio: 0.4;
   --youtube-red: #ff0102;
   --youtube-white: #fff;
+
+  --interface-height: 300px;
 }
 
 .yt-sampler-name-tag {
@@ -46,6 +48,18 @@
 
   vertical-align: middle;
 
+}
+
+.yt-sampler-interface-container {
+  position: absolute;
+  top: calc((var(--container-height) + var(--container-bottom-gap)) * -2 + var(--interface-height) * -1);
+  left: 0;
+  padding: 0 1rem;
+  background-color: rgba(255, 255, 255, 0.2);
+  min-width: 300px;
+  height: calc(var(--interface-height));
+  line-height: var(--container-height);
+  border-radius: calc(var(--container-height) * 0.5);
 }
 
 .yt-sampler-qpts {

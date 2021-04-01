@@ -1,7 +1,9 @@
 console.log('content script.')
 
+const SEQUENCER_STEPS = 16
+const SAMPLES_COUNT = 10
 const DEFAULT_QUEUE_POINTS_COUNT = 10
-const DEFAULT_QUEUE_LENGTH = 0.01
+const DEFAULT_QUEUE_LENGTH = 0.008
 const QUEUE_POINT_SIZE = 8
 const TAG_HREF = 'https://vibertthio.com'
 const TAG = '🔥'
@@ -14,10 +16,14 @@ const QUEUE_POSITION_TEXT_PRECISION = 3
  */
 const state = {
   isDebug: true,
-  oneShot: false,
+  oneShot: true,
   initialized: false,
   youtubeId: "",
   queuePoints: null,
+  players: null,
+  sequencer: false,
+  sequencerStarted: false,
+  sequencerMatrix: null,
 }
 const elements = {
   video: null,
@@ -90,8 +96,20 @@ function init() {
 }
 
 function getAndListenStorageChange() {
-  chrome.storage.local.get('debug', ({ debug }) => { 
+
+  function setSequencer(seq) {
+    state.sequencer = seq
+    if (state.sequencer) {
+      elements.playerEl.classList.remove('hidden')
+    } else {
+      elements.playerEl.classList.add('hidden')
+    }
+  }
+
+  chrome.storage.local.get(['debug', 'sequencer'], ({ debug, sequencer }) => { 
     state.isDebug = debug
+    setSequencer(sequencer)
+
     log('debug: on')
     updateTagTextContet()
   })
@@ -103,6 +121,9 @@ function getAndListenStorageChange() {
       if (item === 'debug') {
         state.isDebug = changes[item].newValue
         updateTagTextContet()
+      }
+      if (item === 'sequencer') {
+        setSequencer(changes[item].newValue)
       }
     }
   })
@@ -170,21 +191,139 @@ function appendCustomElements() {
   }
 
   if (elements.containerEl) elements.containerEl.remove()
+  
 
   const containerEl = htmlToElement(`<div class="yt-sampler-container"></div>`)
   const tagEl = htmlToElement(`
     <button class="yt-sampler-name-tag" href="${TAG_HREF}" target="_blank">${TAG + (state.isDebug ? ' 🚧' : '')}</button>
   `)
+  
+
+  const playerEl = createSequencerElement()
+
+  barContainer.appendChild(playerEl)
+  containerEl.appendChild(tagEl)
+  barContainer.appendChild(containerEl)
+
   tagEl.addEventListener('click', () => {
     elements.queuePointsEl.classList.toggle('hidden')
+    startAudio()
   })
+
 
   elements.tagEl = tagEl
   elements.containerEl = containerEl
   elements.barContainer = barContainer
+}
 
-  containerEl.appendChild(tagEl)
-  barContainer.appendChild(containerEl)
+function createSequencerElement() {
+
+  
+  
+  if (elements.playerEl) elements.playerEl.remove()
+
+  const playerEl = htmlToElement(`
+    <div class="yt-sampler-interface-container">
+      <div>recorded samples</div>
+    </div>
+  `)
+  const controlDiv = htmlToElement(`
+    <div id="sequencer-control-div"></div>
+  `)
+  const button = htmlToElement(`
+    <button id="record-button">record</button>
+  `)
+
+  button.addEventListener('click', () => {
+    console.log('record button clicked')
+    recordSamples()
+  })
+
+  controlDiv.appendChild(button)
+  playerEl.appendChild(controlDiv)
+  
+  state.sequencerMatrix = []
+
+  for (let i = 0; i <= SAMPLES_COUNT; i++) {
+    
+    state.sequencerMatrix[i] = []
+
+    const div = document.createElement('DIV')
+    div.id = `sequencer-div-${i < 10 ? i : "t"}`
+
+    div.appendChild(htmlToElement(`
+      <span>${i < 10 ? i : "t"}</span>
+    `))
+
+    for (let j = 0; j < SEQUENCER_STEPS; j++) {
+
+      const step = i
+      const sampleId = j
+
+      const checkbox = document.createElement('INPUT')
+      checkbox.type = 'checkbox'
+      checkbox.checked = false
+      div.appendChild(checkbox)
+
+      if (i === SAMPLES_COUNT) continue
+
+      state.sequencerMatrix[i][j] = 0
+      checkbox.addEventListener('click', () => {
+        if (checkbox.checked) {
+          state.sequencerMatrix[step][sampleId] = 1
+        } else {
+          state.sequencerMatrix[step][sampleId] = 0
+        }
+
+        // console.log(state.sequencerMatrix)
+      })
+    }
+
+    playerEl.appendChild(div)
+  }
+  
+
+  elements.playerEl = playerEl
+  return playerEl
+}
+
+function appendSequencerInterface() {
+  const controlDiv = document.getElementById('sequencer-control-div')
+  const button = htmlToElement(`
+    <button>start</button>
+  `)
+  const timeDiv = document.getElementById('sequencer-div-t')
+
+  const seq = new Tone.Sequence((time, step) => {
+    // timeDiv.children[step + 1].checked = !timeDiv.children[step + 1].checked
+    for (let s = 0; s < SEQUENCER_STEPS; s++) {
+      timeDiv.children[s + 1].checked = false
+      if (Number(s) === Number(step)) {
+        timeDiv.children[s + 1].checked = true
+      }
+    }
+    
+    for (let i = 0; i < SAMPLES_COUNT; i++) {
+      if (state.sequencerMatrix[i][step] === 1) {
+        state.players[i].start(time)
+      }
+    }
+  }, Array(SEQUENCER_STEPS).fill(null).map((_, i) => i), '16n')
+  Tone.Transport.start()
+
+  button.addEventListener('click', () => {
+    if (state.sequencerStarted) {
+      seq.stop()
+      state.sequencerStarted = false
+      button.textContent = 'start'
+    } else {
+      seq.start('+0.1')
+      state.sequencerStarted = true
+      button.textContent = 'stop'
+    }
+  })
+
+  controlDiv.appendChild(button)
 }
 
 function appendQueuePointsElements() {
@@ -363,6 +502,87 @@ function getUrlVariables (name) {
   }
 }
 
+
+
+function startAudio() {
+  Tone.start()
+}
+
+let playerIndex = 0
+function startPlayer() {
+  console.log('start player', playerIndex)
+  state.players[playerIndex].start()
+  playerIndex = (playerIndex + 1) % state.players.length
+}
+
+/**
+ * Pause the video and record every part.
+ */
+function recordSamples() {
+
+  if (state.players !== null) {
+    log('already recorded.')
+    return
+  }
+  
+  elements.video.pause()
+
+  const stream = Tone.context.createMediaElementSource(elements.video)
+  const gainNode = Tone.context.createGain()
+  const gain = new Tone.Gain()
+  
+  stream.connect(gainNode)
+  Tone.connect(gainNode, gain)
+  gain.toDestination()
+
+  const recorder = new Tone.Recorder()
+  gain.connect(recorder)
+
+  state.players = []
+  let recordStartTime = 0
+
+  for (let i = 0; i < state.queuePoints.length; i++) {
+    const pt = state.queuePoints[i]
+    
+    const recordedLength = elements.video.duration * (pt.end - pt.start) * 1000
+    const id = i
+
+    setTimeout(() => {
+      console.log('record queue point', id, pt)
+
+      recorder.start()
+      elements.video.currentTime = pt.start * elements.video.duration
+      elements.video.play()
+
+      setTimeout(async () => {
+        elements.video.pause()
+        const recording = await recorder.stop()
+        
+        console.log('recording finish')
+        const url = URL.createObjectURL(recording)
+        console.log('recording', recording)
+        console.log('url', url)
+        
+        const player = new Tone.Player(url).toDestination()
+        state.players.push(player)
+
+        const button = htmlToElement(`<button>${id}<button>`)
+        document.getElementById(`sequencer-div-${id}`).appendChild(button)
+        button.addEventListener('click', () => {
+          player.start()
+        })
+
+      }, recordedLength)
+      
+    }, recordStartTime)
+
+    recordStartTime += 1.1 * recordedLength
+  }
+
+  appendSequencerInterface()
+}
+
+
 /**
  * Bind all the keyboard events on the web page.
  */
@@ -422,5 +642,9 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     updateQueuePointsStorage()
   } else if (message === 'Share queues') {
     addDataToUrl()
+  } else if (message === 'Start player') {
+    startPlayer()
+  } else if (message === 'Record samples') {
+    recordSamples()
   }
 });
