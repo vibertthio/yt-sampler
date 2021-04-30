@@ -1,6 +1,6 @@
 {
   "name": "YouTube Sampler",
-  "version": "0.1",
+  "version": "0.2",
   "description": "Create customized queue points of numeric keys (0~9) for YouTube video.",
   "manifest_version": 3,
   "background": {
