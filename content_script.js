@@ -100,9 +100,9 @@ function getAndListenStorageChange() {
   function setSequencer(seq) {
     state.sequencer = seq
     if (state.sequencer) {
-      elements.playerEl.classList.remove('hidden')
+      elements.playerEl.style.display = 'block'
     } else {
-      elements.playerEl.classList.add('hidden')
+      elements.playerEl.style.display = 'none'
     }
   }
 
@@ -227,6 +227,7 @@ function createSequencerElement() {
       <div>recorded samples</div>
     </div>
   `)
+  playerEl.style.display = 'none'
   const controlDiv = htmlToElement(`
     <div id="sequencer-control-div"></div>
   `)
