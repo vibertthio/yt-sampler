@@ -15,7 +15,7 @@ const QUEUE_POSITION_TEXT_PRECISION = 3
  * States and global variables.
  */
 const state = {
-  isDebug: true,
+  isDebug: false,
   oneShot: true,
   initialized: false,
   youtubeId: "",
@@ -28,6 +28,7 @@ const state = {
 const elements = {
   video: null,
   tagEl: null,
+  ptEndEls: null,
 }
 
 
@@ -95,14 +96,28 @@ function init() {
   state.initialized = true
 }
 
+function toggleQueuePointEndingElements(show = true) {
+  if (!elements.ptEndEls) return
+  elements.ptEndEls.forEach(el => {
+    if (!show) {
+      el.classList.add('hidden')
+    } else {
+      el.classList.remove('hidden')
+    }
+  })
+  
+}
+
 function getAndListenStorageChange() {
 
   function setSequencer(seq) {
     state.sequencer = seq
     if (state.sequencer) {
       elements.playerEl.style.display = 'block'
+      toggleQueuePointEndingElements(true)
     } else {
       elements.playerEl.style.display = 'none'
+      toggleQueuePointEndingElements(false)
     }
   }
 
@@ -332,6 +347,7 @@ function appendQueuePointsElements() {
   const { barContainer } = elements
 
   const queuePointsEl = htmlToElement(`<div class="yt-sampler-qpts"></div>`)
+  elements.ptEndEls = []
   for (let i = 0; i < state.queuePoints.length; i++) {
     const pt = state.queuePoints[i]
     const ptEl = htmlToElement(`
@@ -342,7 +358,7 @@ function appendQueuePointsElements() {
         }</span>
       </div>
     `)
-    const ptEndEl = htmlToElement(`<div class="yt-sampler-qpt yt-sampler-qpt-end"></div>`)
+    const ptEndEl = htmlToElement(`<div class="yt-sampler-qpt yt-sampler-qpt-end hidden"></div>`)
 
     const perfectLeft = pt.start * barContainer.clientWidth - QUEUE_POINT_SIZE * 0.5
     const perfectEndLeft = pt.end * barContainer.clientWidth - QUEUE_POINT_SIZE * 0.5
@@ -350,9 +366,11 @@ function appendQueuePointsElements() {
     ptEl.style.left = `${100 * perfectLeft / barContainer.clientWidth}%`
     ptEndEl.style.left = `${100 * perfectEndLeft / barContainer.clientWidth}%`
 
-    if (!state.oneShot) {
-      ptEndEl.classList.add('hidden')
-    }
+    // if (!state.oneShot) {
+    //   ptEndEl.classList.add('hidden')
+    // }
+
+    elements.ptEndEls[i] = ptEndEl
 
     queuePointsEl.appendChild(ptEl)
     queuePointsEl.appendChild(ptEndEl)
